@@ -1,0 +1,113 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ───────────────────────── Design tokens ─────────────────────────
+   Channels are space-separated RGB so Tailwind can apply opacity.
+   Light: warm paper canvas, white surfaces, ink text.
+   Module accents: Finance = deep green, Nutrition = terracotta,
+   Activities = indigo. Semantic colours never double as accents. */
+:root {
+  --canvas: 245 243 238;
+  --surface: 255 255 255;
+  --subtle: 250 249 246;
+  --muted: 239 236 230;
+  --line: 230 226 218;
+  --line-strong: 212 206 194;
+  --ink: 23 23 26;
+  --ink-2: 74 74 82;
+  --ink-3: 120 119 128;
+  --primary: 28 28 33;
+  --primary-fg: 250 249 246;
+  --finance: 30 107 87;
+  --finance-soft: 227 240 235;
+  --nutrition: 196 98 45;
+  --nutrition-soft: 249 233 222;
+  --activities: 74 86 201;
+  --activities-soft: 231 233 249;
+  --positive: 30 122 76;
+  --positive-soft: 225 242 232;
+  --negative: 185 58 50;
+  --negative-soft: 250 228 225;
+  --warning: 168 108 22;
+  --warning-soft: 250 239 214;
+  --info: 55 103 182;
+  --info-soft: 226 235 249;
+  --focus: 74 86 201;
+  /* Categorical chart series — validated for CVD separation (fixed order, never cycled). */
+  --chart-1: 196 98 45;
+  --chart-2: 42 127 192;
+  --chart-3: 168 108 22;
+  --chart-4: 138 79 176;
+  --chart-5: 120 119 128;
+  --grid: 230 226 218;
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --canvas: 15 15 17;
+  --surface: 24 24 27;
+  --subtle: 29 29 33;
+  --muted: 36 36 41;
+  --line: 42 42 48;
+  --line-strong: 58 58 66;
+  --ink: 242 241 238;
+  --ink-2: 184 183 190;
+  --ink-3: 133 132 140;
+  --primary: 242 241 238;
+  --primary-fg: 20 20 23;
+  --finance: 92 186 157;
+  --finance-soft: 25 50 43;
+  --nutrition: 232 145 96;
+  --nutrition-soft: 58 36 24;
+  --activities: 143 153 245;
+  --activities-soft: 34 37 70;
+  --positive: 94 196 136;
+  --positive-soft: 23 49 35;
+  --negative: 240 120 110;
+  --negative-soft: 62 28 26;
+  --warning: 230 176 80;
+  --warning-soft: 56 43 18;
+  --info: 120 162 235;
+  --info-soft: 26 38 62;
+  --focus: 143 153 245;
+  --chart-1: 217 119 63;
+  --chart-2: 63 143 214;
+  --chart-3: 192 138 30;
+  --chart-4: 160 112 208;
+  --chart-5: 133 132 140;
+  --grid: 42 42 48;
+  color-scheme: dark;
+}
+
+@layer base {
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    @apply bg-canvas text-ink font-sans text-base antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+  ::selection { background: rgb(var(--activities) / 0.2); }
+  :focus-visible { outline: none; box-shadow: 0 0 0 2px rgb(var(--surface)), 0 0 0 4px rgb(var(--focus) / 0.6); border-radius: 6px; }
+  /* Grid items may shrink below their content width (prevents mobile overflow from long text). */
+  .grid > * { min-width: 0; }
+  /* Keep absolutely-positioned descendants (e.g. sr-only labels) inside horizontal scrollers. */
+  .overflow-x-auto { position: relative; }
+  input[type="number"]::-webkit-inner-spin-button { opacity: 0.4; }
+  dialog::backdrop { background: rgb(12 12 14 / 0.45); backdrop-filter: blur(2px); }
+}
+
+@layer components {
+  .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum", "cv11"; }
+  .card { @apply min-w-0 bg-surface border border-line rounded-lg shadow-card; }
+  .eyebrow { @apply text-micro uppercase font-medium text-ink-3; }
+  .skeleton {
+    background: linear-gradient(90deg, rgb(var(--muted)) 0%, rgb(var(--subtle)) 50%, rgb(var(--muted)) 100%);
+    background-size: 800px 100%;
+    @apply animate-shimmer rounded;
+  }
+  .scrollbar-thin { scrollbar-width: thin; scrollbar-color: rgb(var(--line-strong)) transparent; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
