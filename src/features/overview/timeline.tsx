@@ -6,14 +6,14 @@ import { cn } from "@/lib/cn";
 import { Checkbox } from "@/components/ui/field";
 import { useClock, useDb, useMoney } from "@/lib/hooks";
 import { openSheet } from "@/lib/store/ui";
-import { eventOccurrences } from "@/lib/calc/productivity";
+import { eventOccurrences, externalEventsBetween } from "@/lib/calc/productivity";
 import { recurringOccurrences } from "@/lib/calc/finance";
 import { itemNutrients } from "@/lib/calc/nutrition";
 import { timeToMinutes, type ISODate } from "@/lib/domain/dates";
 import { completeWithFeedback } from "@/features/activities/task-item";
 import type { Database, Task } from "@/lib/domain/types";
 
-type Kind = "event" | "task" | "meal" | "bill" | "reminder";
+type Kind = "event" | "task" | "meal" | "bill" | "reminder" | "external";
 interface Item {
   key: string;
   kind: Kind;
@@ -33,12 +33,15 @@ const KIND_META: Record<Kind, { icon: typeof CalendarDays; label: string }> = {
   meal: { icon: Utensils, label: "Planned meal" },
   bill: { icon: Receipt, label: "Bill" },
   reminder: { icon: Bell, label: "Habit reminder" },
+  external: { icon: CalendarDays, label: "External calendar" },
 };
 
 export function buildTimeline(db: Database, date: ISODate, opts: { meals: boolean; bills: boolean; habits: boolean }, money: (c: number) => string): Item[] {
   const items: Item[] = [];
   for (const o of eventOccurrences(db.events, date, date))
     items.push({ key: o.key, kind: "event", time: o.event.allDay ? null : o.event.startTime, end: o.event.endTime, title: o.event.title, sub: o.event.location, color: o.event.color, onClick: () => openSheet({ kind: "event", id: o.event.id, occurrenceDate: o.date }) });
+  for (const e of externalEventsBetween(db.externalEvents, db.events, date, date))
+    items.push({ key: e.id, kind: "external", time: e.allDay || e.date !== date ? null : e.startTime, end: e.endDate === date ? e.endTime : null, title: e.title, sub: `${e.provider === "google" ? "Google" : "Notion"} · ${e.calendarName}`, color: e.color, onClick: () => openSheet({ kind: "external", id: e.id }) });
   for (const t of db.tasks)
     if (t.dueDate === date && t.startTime)
       items.push({ key: t.id, kind: "task", time: t.startTime, end: t.endTime, title: t.title, color: db.projects.find((p) => p.id === t.projectId)?.color ?? "rgb(var(--activities))", task: t, done: t.done, onClick: () => openSheet({ kind: "task", id: t.id }) });
@@ -84,9 +87,9 @@ export function DayTimeline({ date, meals = true, bills = true, habits = true, e
         <div
           className={cn(
             "flex min-w-0 flex-1 items-center gap-2.5 rounded-md px-3 py-2",
-            i.kind === "event" ? "bg-subtle" : i.kind === "task" ? "border border-line bg-surface" : "border border-dashed border-line-strong",
+            i.kind === "event" ? "bg-subtle" : i.kind === "task" ? "border border-line bg-surface" : i.kind === "external" ? "border border-dashed bg-subtle" : "border border-dashed border-line-strong",
           )}
-          style={i.kind === "event" ? { boxShadow: `inset 3px 0 0 ${i.color}` } : undefined}
+          style={i.kind === "event" || i.kind === "external" ? { boxShadow: `inset 3px 0 0 ${i.color}`, borderColor: i.kind === "external" ? i.color : undefined } : undefined}
         >
           {i.kind === "task" && i.task ? (
             <Checkbox checked={!!i.done} onChange={() => completeWithFeedback(i.task!, today)} label={`Complete ${i.title}`} size="sm" />

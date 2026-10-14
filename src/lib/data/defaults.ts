@@ -122,6 +122,12 @@ export function emptyDatabase(profile: Profile = defaultProfile()): Database {
     goals: [],
     goalContributions: [],
     milestones: [],
+    integrationSources: [],
+    importRuns: [],
+    importedRecords: [],
+    holdings: [],
+    externalEvents: [],
+    calendarSources: [],
     dismissed: [],
   };
 }

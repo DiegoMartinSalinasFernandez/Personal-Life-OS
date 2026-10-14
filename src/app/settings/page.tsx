@@ -1,7 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Download, Upload, FlaskConical, Eraser, Trash2, Plus, X, ShieldCheck, Pencil } from "lucide-react";
+import Link from "next/link";
+import { Download, Upload, FlaskConical, Eraser, Trash2, Plus, X, ShieldCheck, Pencil, PlugZap, ChevronRight } from "lucide-react";
 import { PageHeader } from "@/components/shell/page";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -84,6 +85,7 @@ export default function SettingsPage() {
     ["#nutrition", "Nutrition"],
     ["#categories", "Categories"],
     ["#data", "Data & privacy"],
+    ["/settings/integrations", "Integrations"],
   ];
 
   return (
@@ -96,6 +98,14 @@ export default function SettingsPage() {
           </ul>
         </nav>
         <div className="flex min-w-0 flex-col gap-4">
+          <Link href="/settings/integrations" className="card flex items-center gap-3 p-4 transition hover:border-line-strong">
+            <span className="grid size-9 place-items-center rounded-md bg-info-soft text-info"><PlugZap className="size-4" /></span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-base font-semibold">Integrations & connections</span>
+              <span className="block truncate text-sm text-ink-3">Mercado Pago, Cocos Capital, other providers, Google Calendar and Notion</span>
+            </span>
+            <ChevronRight className="size-4 text-ink-3" />
+          </Link>
           <Card id="profile" className="scroll-mt-20">
             <CardHeader title="Profile & region" />
             <CardBody className="grid gap-4 sm:grid-cols-2">
@@ -232,7 +242,7 @@ export default function SettingsPage() {
                 <ShieldCheck className="mt-0.5 size-4 shrink-0 text-finance" />
                 <div>
                   <p><span className="font-medium text-ink">Storage:</span> {adapter?.label ?? "Local"}. Your data never leaves this device; there&apos;s no account, server or sync.</p>
-                  <p className="mt-1">Clearing site data in your browser deletes it — download a backup regularly. Connected integrations: <span className="font-medium">none</span> (no bank, food API, calendar or push notifications).</p>
+                  <p className="mt-1">Clearing site data in your browser deletes it — download a backup regularly. Optional integrations are managed under <Link href="/settings/integrations" className="font-medium underline">Integrations</Link>; their credentials live encrypted on the server, never in this browser.</p>
                 </div>
               </div>
               {p.demo ? (

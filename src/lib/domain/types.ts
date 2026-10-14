@@ -99,6 +99,16 @@ export interface Transaction extends Base {
   /** Set when the transaction settles an occurrence of a recurring item. */
   recurringId?: ID | null;
   occurrenceDate?: ISODate | null;
+  /** Set when the transaction came from an integration/import (never for manual entries). */
+  source?: TxSource | null;
+}
+
+export interface TxSource {
+  sourceId: ID;
+  provider: string;
+  /** Provider record id, or a content fingerprint for files without ids. */
+  externalId: string | null;
+  runId: ID | null;
 }
 
 export interface Budget extends Base {
@@ -314,6 +324,108 @@ export interface Milestone extends Base {
   order: number;
 }
 
+// ───────────────────────── Integrations (client-side records) ─────────────────────────
+// Credentials never live here: OAuth tokens are stored encrypted on the server.
+
+export type FinanceProviderId = "mercadopago" | "cocos" | "custom";
+
+/** A financial data source the user activated (counts toward the 3-provider limit while active). */
+export interface IntegrationSource extends Base {
+  provider: FinanceProviderId;
+  name: string;
+  /** "oauth" = backed by a verified server-side connection; "csv" = file imports only. */
+  kind: "oauth" | "csv";
+  status: "active" | "disconnected";
+  accountId: ID | null;
+  /** When true every imported record waits for review, even when unambiguous. */
+  reviewAll: boolean;
+  connectedAt: Timestamp;
+  disconnectedAt: Timestamp | null;
+  lastImportAt: Timestamp | null;
+  lastError: string | null;
+}
+
+export interface ImportRun extends Base {
+  sourceId: ID;
+  kind: "api" | "csv" | "holdings";
+  fileName?: string;
+  added: number;
+  accepted: number;
+  duplicates: number;
+  needsReview: number;
+  ignored: number;
+  errors: string[];
+}
+
+export type ImportedRecordState = "pending" | "accepted" | "rejected" | "duplicate" | "ignored";
+export type ImportedKind = "income" | "expense" | "transfer" | "investment" | "unknown";
+
+/** Staging area: imported rows never affect summaries until accepted. */
+export interface ImportedRecord extends Base {
+  sourceId: ID;
+  runId: ID;
+  provider: string;
+  externalId: string | null;
+  date: ISODate;
+  /** Always positive; direction gives the sign. */
+  amount: Cents;
+  direction: "in" | "out" | "unknown";
+  currency: string;
+  description: string;
+  counterparty?: string;
+  providerStatus?: string;
+  fee?: Cents | null;
+  kindGuess: ImportedKind;
+  issues: string[];
+  state: ImportedRecordState;
+  transactionIds: ID[];
+  duplicateOfId?: ID | null;
+}
+
+export interface Holding extends Base {
+  accountId: ID;
+  sourceId: ID | null;
+  origin: "imported" | "manual";
+  symbol: string;
+  name?: string;
+  quantity: number;
+  currency: string;
+  /** Unit price as provided by the source/user — never fetched or invented. */
+  price: Cents | null;
+  valuation: Cents | null;
+  valuationDate: ISODate;
+}
+
+export type CalendarProviderId = "google" | "notion";
+
+/** Read-only copy of an event from an external calendar (cached locally for display). */
+export interface ExternalEvent {
+  id: string; // provider:calendarId:externalId[:date]
+  provider: CalendarProviderId;
+  calendarId: string;
+  calendarName: string;
+  externalId: string;
+  title: string;
+  date: ISODate;
+  endDate: ISODate;
+  startTime: TimeOfDay | null;
+  endTime: TimeOfDay | null;
+  allDay: boolean;
+  location?: string;
+  url?: string;
+  color: string;
+  recurring: boolean;
+}
+
+export interface CalendarSourceConfig {
+  id: CalendarProviderId;
+  available: { id: string; name: string; color: string; primary?: boolean; dateProperty?: string }[];
+  selected: string[];
+  lastSyncAt: Timestamp | null;
+  lastError: string | null;
+  syncedRange: { start: ISODate; end: ISODate } | null;
+}
+
 // ───────────────────────── Database ─────────────────────────
 
 export interface Database {
@@ -338,6 +450,12 @@ export interface Database {
   goals: Goal[];
   goalContributions: GoalContribution[];
   milestones: Milestone[];
+  integrationSources: IntegrationSource[];
+  importRuns: ImportRun[];
+  importedRecords: ImportedRecord[];
+  holdings: Holding[];
+  externalEvents: ExternalEvent[];
+  calendarSources: CalendarSourceConfig[];
   /** Keys of insights/notifications the user dismissed. */
   dismissed: string[];
 }

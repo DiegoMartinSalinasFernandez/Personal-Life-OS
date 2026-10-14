@@ -1,7 +1,9 @@
 "use client";
 
 import { create } from "zustand";
-import type { CollectionKey, Database, FoodEntry, Food, ID, MealItem, MealType, NutritionPrefs, Profile, Task, Transaction } from "../domain/types";
+import type { CalendarProviderId, CalendarSourceConfig, CollectionKey, Database, ExternalEvent, FoodEntry, Food, Holding, ID, ImportRun, IntegrationSource, MealItem, MealType, NutritionPrefs, Profile, Task, Transaction } from "../domain/types";
+import { defaultResolution, recordToTransactions, stageRecords, type RawRecord, type Resolution } from "../integrations/importer";
+import { activeFinanceCount, canAddFinanceConnection } from "../integrations/catalog";
 import { addDays, todayISO, type ISODate } from "../domain/dates";
 import { createAdapter, type DataAdapter } from "../data/adapter";
 import { emptyDatabase, defaultProfile, normalizeDatabase, nowStamp, uid } from "../data/defaults";
@@ -67,6 +69,16 @@ interface State {
   importJSON(json: string): void;
   wipe(): void;
   setMealTypes(fn: (m: MealType[]) => MealType[]): void;
+
+  // Integrations
+  addSource(src: Omit<IntegrationSource, "id" | "createdAt" | "status" | "connectedAt" | "disconnectedAt" | "lastImportAt" | "lastError">, serverConnected?: string[]): { ok: true; id: ID } | { ok: false; reason: string };
+  disconnectSource(id: ID): void;
+  stageImport(sourceId: ID, rows: RawRecord[], meta: { kind: ImportRun["kind"]; fileName?: string; errors?: string[] }): ImportRun | null;
+  resolveRecord(recordId: ID, res: Resolution): { ok: boolean; reason?: string };
+  replaceHoldings(accountId: ID, sourceId: ID | null, holdings: Omit<Holding, "id" | "createdAt" | "accountId" | "sourceId" | "origin">[], origin: Holding["origin"]): number;
+  setExternalEvents(provider: CalendarProviderId, range: { start: string; end: string }, events: ExternalEvent[]): void;
+  setCalendarSource(id: CalendarProviderId, patch: Partial<CalendarSourceConfig>): void;
+  removeCalendarProvider(id: CalendarProviderId): void;
 }
 
 const stampPatch = <T>(patch: T) => ({ ...patch, updatedAt: nowStamp() });
@@ -336,6 +348,111 @@ export const useStore = create<State>()((set, get) => {
     },
     setMealTypes(fn) {
       mutate((db) => ({ ...db, mealTypes: fn(db.mealTypes) }));
+    },
+
+    // ───────────── Integrations ─────────────
+    addSource(src, serverConnected = []) {
+      const { db } = get();
+      const active = db.integrationSources.filter((x) => x.status === "active");
+      const already = src.provider !== "custom" && active.some((x) => x.provider === src.provider);
+      if (already) return { ok: false, reason: "This provider is already connected." };
+      const count = activeFinanceCount({ localActiveProviders: active.map((x) => x.provider), serverConnected: serverConnected.filter((p) => p !== src.provider) });
+      const check = canAddFinanceConnection(count);
+      if (!check.ok) return { ok: false, reason: check.reason! };
+      const id = get().add("integrationSources", { ...src, status: "active", connectedAt: nowStamp(), disconnectedAt: null, lastImportAt: null, lastError: null });
+      return { ok: true, id };
+    },
+    disconnectSource(id) {
+      // Imported transactions and the import history are kept; only the source stops counting as connected.
+      get().update("integrationSources", id, { status: "disconnected", disconnectedAt: nowStamp() });
+    },
+    stageImport(sourceId, rows, meta) {
+      const { db } = get();
+      const source = db.integrationSources.find((x) => x.id === sourceId);
+      if (!source) return null;
+      const account = source.accountId ? db.accounts.find((a) => a.id === source.accountId) ?? null : null;
+      const runId = uid();
+      const res = stageRecords(rows, { provider: source.provider === "custom" ? `custom:${source.id}` : source.provider, sourceId, runId, account, reviewAll: source.reviewAll, transactions: db.transactions, existing: db.importedRecords });
+      const stamp = nowStamp();
+      const staged = res.records.map((r) => ({ ...r, id: uid(), createdAt: stamp }));
+      // Auto-accept only clean, unambiguous records — and only when the user hasn't asked to review everything.
+      const newTx: Transaction[] = [];
+      let accepted = 0;
+      if (account && !source.reviewAll) {
+        for (const r of staged) {
+          const def = r.state === "pending" ? defaultResolution(r) : null;
+          if (!def) continue;
+          const txs = recordToTransactions(r, account.id, def).map((t) => ({ ...t, id: uid(), createdAt: stamp }));
+          newTx.push(...txs);
+          r.state = "accepted";
+          r.transactionIds = txs.map((t) => t.id);
+          accepted++;
+        }
+      }
+      const run: ImportRun = { id: runId, createdAt: stamp, sourceId, kind: meta.kind, fileName: meta.fileName, added: res.counts.added, accepted, duplicates: res.counts.duplicates, needsReview: staged.filter((r) => r.state === "pending").length, ignored: res.counts.ignored, errors: meta.errors ?? [] };
+      mutate((d) => ({
+        ...d,
+        importRuns: [...d.importRuns, run],
+        importedRecords: [...d.importedRecords, ...staged],
+        transactions: [...d.transactions, ...newTx],
+        integrationSources: d.integrationSources.map((x) => (x.id === sourceId ? { ...x, lastImportAt: stamp, lastError: null } : x)),
+      }));
+      return run;
+    },
+    resolveRecord(recordId, res) {
+      const { db } = get();
+      const rec = db.importedRecords.find((r) => r.id === recordId);
+      if (!rec || rec.state === "accepted") return { ok: false, reason: "Already handled." };
+      if (res.as === "reject") {
+        get().update("importedRecords", recordId, { state: "rejected" });
+        return { ok: true };
+      }
+      if (res.as === "link") {
+        // The manual transaction already represents this movement: mark it as matched, create nothing new.
+        const tx = db.transactions.find((t) => t.id === res.transactionId);
+        if (!tx) return { ok: false, reason: "Transaction not found." };
+        mutate((d) => ({
+          ...d,
+          transactions: d.transactions.map((t) => (t.id === tx.id ? { ...t, source: { sourceId: rec.sourceId, provider: rec.provider, externalId: rec.externalId, runId: rec.runId } } : t)),
+          importedRecords: d.importedRecords.map((r) => (r.id === recordId ? { ...r, state: "duplicate", transactionIds: [tx.id] } : r)),
+        }));
+        return { ok: true };
+      }
+      const source = db.integrationSources.find((x) => x.id === rec.sourceId);
+      if (!source?.accountId) return { ok: false, reason: "Link this source to an account first." };
+      const stamp = nowStamp();
+      const txs = recordToTransactions(rec, source.accountId, res).map((t) => ({ ...t, id: uid(), createdAt: stamp }));
+      mutate((d) => ({
+        ...d,
+        transactions: [...d.transactions, ...txs],
+        importedRecords: d.importedRecords.map((r) => (r.id === recordId ? { ...r, state: "accepted", transactionIds: txs.map((t) => t.id) } : r)),
+      }));
+      return { ok: true };
+    },
+    replaceHoldings(accountId, sourceId, holdings, origin) {
+      const stamp = nowStamp();
+      // A new snapshot replaces the previous one from the same origin/source; manual and imported never overwrite each other.
+      mutate((d) => ({
+        ...d,
+        holdings: [...d.holdings.filter((h) => !(h.accountId === accountId && h.origin === origin && h.sourceId === sourceId)), ...holdings.map((h) => ({ ...h, id: uid(), createdAt: stamp, accountId, sourceId, origin }))],
+      }));
+      return holdings.length;
+    },
+    setExternalEvents(provider, range, events) {
+      mutate((d) => ({
+        ...d,
+        externalEvents: [...d.externalEvents.filter((e) => e.provider !== provider || e.endDate < range.start || e.date > range.end), ...events],
+      }));
+    },
+    setCalendarSource(id, patch) {
+      mutate((d) => {
+        const cur = d.calendarSources.find((c) => c.id === id) ?? { id, available: [], selected: [], lastSyncAt: null, lastError: null, syncedRange: null };
+        return { ...d, calendarSources: [...d.calendarSources.filter((c) => c.id !== id), { ...cur, ...patch }] };
+      });
+    },
+    removeCalendarProvider(id) {
+      // Cached copies of external events are removed; local events are untouched.
+      mutate((d) => ({ ...d, externalEvents: d.externalEvents.filter((e) => e.provider !== id), calendarSources: d.calendarSources.filter((c) => c.id !== id) }));
     },
   };
 });

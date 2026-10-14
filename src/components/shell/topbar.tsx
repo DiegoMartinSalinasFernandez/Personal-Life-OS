@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bell, Plus, Search, Settings, Target, LineChart, Moon, Sun, Monitor } from "lucide-react";
+import { Bell, Plus, Search, Settings, Target, LineChart, Moon, Sun, Monitor, PlugZap } from "lucide-react";
 import { useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Menu } from "@/components/ui/menu";
@@ -79,6 +79,7 @@ export function Topbar() {
             items={[
               { label: "Goals", icon: <Target />, onSelect: () => router.push("/goals") },
               { label: "Insights", icon: <LineChart />, onSelect: () => router.push("/insights") },
+              { label: "Integrations", icon: <PlugZap />, onSelect: () => router.push("/settings/integrations") },
               "separator",
               { label: `Theme: ${profile.theme}`, icon: themeIcon, onSelect: () => actions().setProfile({ theme: nextTheme }) },
               { label: "Settings", icon: <Settings />, onSelect: () => router.push("/settings"), hint: "G S" },

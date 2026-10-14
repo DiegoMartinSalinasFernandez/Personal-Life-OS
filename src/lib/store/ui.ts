@@ -13,7 +13,8 @@ export type Sheet =
   | { kind: "task"; id?: ID; defaults?: Partial<Task> }
   | { kind: "event"; id?: ID; defaults?: Partial<CalendarEvent>; occurrenceDate?: ISODate }
   | { kind: "habit"; id?: ID }
-  | { kind: "goal"; id?: ID; module?: GoalModule };
+  | { kind: "goal"; id?: ID; module?: GoalModule }
+  | { kind: "external"; id: string };
 
 interface UIState {
   sheet: Sheet | null;

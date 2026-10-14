@@ -4,9 +4,10 @@ A personal command center that brings money, food/protein tracking and day-to-da
 application. Three connected modules share one design system, one navigation shell, one data model,
 global search, quick-add and cross-module insights.
 
-> **Status:** fully functional local-first app. All data is stored in the browser (no server, no
-> account). No bank, nutrition API, calendar provider or push service is connected — see
-> [Integrations & limitations](#integrations--limitations).
+> **Status:** fully functional local-first app. Records are stored in the browser. An optional
+> **Integrations Center** (Settings → Integrations) adds read-only Mercado Pago, Google Calendar and
+> Notion connections through official OAuth (server-side, encrypted tokens) plus CSV/manual workflows
+> for Cocos Capital and other providers — see [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md).
 
 ---
 
@@ -24,14 +25,16 @@ Demo data can be cleared or reset at any time in **Settings → Data & privacy**
 | Script              | What it does                                   |
 | ------------------- | ---------------------------------------------- |
 | `npm run dev`       | Development server                             |
-| `npm run build`     | Production build (all routes prerender static) |
+| `npm run build`     | Production build (pages prerender; `/api/integrations/*` run on Node) |
 | `npm start`         | Serve the production build                     |
 | `npm test`          | Unit tests for calculation logic (Vitest)      |
 | `npm run typecheck` | Strict TypeScript check                        |
 | `npm run lint`      | ESLint                                         |
 
-**Environment variables:** none are required. `.env.example` lists names reserved for a future
-hosted backend. No secrets are used anywhere.
+**Environment variables:** none are required for the core app. OAuth integrations need the
+server variables listed in `.env.example` (names only) — setup steps in
+[docs/INTEGRATIONS.md](docs/INTEGRATIONS.md). Integrations require running the Node server
+(`npm run dev` / `npm start`), not static hosting.
 
 Requirements: Node 20+.
 
@@ -92,6 +95,19 @@ reminders, live "now" marker) and dismissible **insights** derived only from you
   linked goals, archive/delete (tasks move to Inbox).
 - **Habits** — daily or selected-day schedules, 7-day check-in grid, current/best streak,
   30-day rate, weekly consistency chart, 12-week heatmaps, reminders, archive.
+
+### Integrations Center (Settings → Integrations & connections)
+- **Finance (max 3 providers at a time):** Mercado Pago (official OAuth + PKCE, payments search,
+  plus account-report CSV), Cocos Capital (no official API → CSV activity, holdings snapshots and
+  manual balances), and a configurable provider slot (statement CSV).
+- **Calendars (separate from the limit):** Google Calendar (read-only scopes, calendar selection,
+  recurring instances, timezone conversion) and Notion (Notion Calendar has no public API → shared
+  Google Calendar workflow, or official Notion API for dated database entries).
+- **Truthful statuses:** available, connected, synchronization required, connection expired, error,
+  manual import available, not supported, requires developer configuration.
+- **Finance → Imports:** review queue, duplicate linking, transfer/income/expense decisions, import
+  history; imported transactions carry source labels and never double-count manual ones.
+- **Accounts → Investment holdings:** imported vs manual positions with valuation dates.
 
 ### Shared
 - **Goals** — one goal system, each with its own unit: money (contributions), nutrition (days at
@@ -178,9 +194,10 @@ communicated by colour alone (icons + labels).
 | Area                    | Today                                                    | Future                                                   |
 | ----------------------- | -------------------------------------------------------- | -------------------------------------------------------- |
 | Persistence             | Browser `localStorage` via `LocalStorageAdapter`; syncs across tabs; JSON backup/restore | Implement `DataAdapter` against a hosted DB (e.g. Supabase/Postgres with row-level security and auth) |
-| Banks                   | Manual entry + CSV import                                | Aggregator integration (Plaid, GoCardless, …)            |
+| Banks & wallets         | Manual entry, CSV import with review; Mercado Pago payments via official OAuth (seller-side data) | More provider adapters once official APIs are verified |
+| Investments             | Holdings via CSV or manual entry (no live prices)        | Broker API if one becomes officially available           |
 | Food data               | Local **sample** database (approximate, labelled) + custom foods | Implement `FoodProvider` (`src/lib/data/food-provider.ts`) for a real nutrition API |
-| Calendar                | Internal calendar                                        | Google / Outlook sync                                    |
+| Calendar                | Internal calendar + read-only Google Calendar / Notion database sync | Write-back (needs broader scopes), Outlook              |
 | Notifications           | In-app reminders only                                    | Web push / email                                         |
 | Multi-currency          | Per-account currency, no conversion                      | FX rates                                                 |
 | Auth / multi-user       | Single local user                                        | Accounts with per-user data isolation                    |
@@ -198,7 +215,7 @@ so wherever they appear. Nutrition targets are user-chosen; the app gives no med
 
 ## Testing
 
-`npm test` runs 43 unit tests covering date arithmetic and timezone resolution, money parsing and
+`npm test` runs 85 tests (42 of them for the Integrations Center — see docs/INTEGRATIONS.md §4) covering date arithmetic and timezone resolution, money parsing and
 formatting, recurrence expansion (month-end clamping, weekdays, intervals, exceptions), balances,
 transfers, liabilities, budgets and proration, cash-flow series, recurring settlement status, savings
 goal pace, unit/portion conversion and protein scaling, daily/weekly nutrition stats and streaks,

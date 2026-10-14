@@ -1,4 +1,4 @@
-import type { CalendarEvent, Goal, Habit, HabitCompletion, Milestone, Priority, Project, Task, FoodEntry, ID } from "../domain/types";
+import type { CalendarEvent, ExternalEvent, Goal, Habit, HabitCompletion, Milestone, Priority, Project, Task, FoodEntry, ID } from "../domain/types";
 import { addDays, diffDays, eachDay, inRange, timeToMinutes, weekday, type ISODate, type TimeOfDay } from "../domain/dates";
 import { nextOccurrence, occurrencesBetween } from "../domain/recurrence";
 import { entryNutrients } from "./nutrition";
@@ -209,4 +209,26 @@ export const daysLeft = (target: ISODate | null, today: ISODate) => (target ? di
 
 export function minutesUntil(time: TimeOfDay, now: TimeOfDay): number {
   return timeToMinutes(time) - timeToMinutes(now);
+}
+
+// ───────────────────────── External calendars ─────────────────────────
+
+const evKey = (title: string, date: string, time: string | null) => `${title.trim().toLowerCase()}|${date}|${time ?? "allday"}`;
+
+/**
+ * Cached external events overlapping [from, to], minus those a local event
+ * already represents (same title, date and start time) — so nothing shows twice.
+ */
+export function externalEventsBetween(external: ExternalEvent[], local: CalendarEvent[], from: ISODate, to: ISODate): ExternalEvent[] {
+  const localKeys = new Set(eventOccurrences(local, from, to).map((o) => evKey(o.event.title, o.date, o.event.allDay ? null : o.event.startTime)));
+  const seen = new Set<string>();
+  return external
+    .filter((e) => e.date <= to && e.endDate >= from)
+    .filter((e) => {
+      const k = evKey(e.title, e.date, e.allDay ? null : e.startTime);
+      if (localKeys.has(k) || seen.has(e.id)) return false;
+      seen.add(e.id);
+      return true;
+    })
+    .sort((a, b) => (a.date === b.date ? (a.startTime ?? "").localeCompare(b.startTime ?? "") : a.date < b.date ? -1 : 1));
 }

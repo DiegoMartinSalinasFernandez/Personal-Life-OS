@@ -7,6 +7,7 @@ import { TaskDialog } from "@/features/activities/task-form";
 import { EventDialog } from "@/features/activities/event-form";
 import { HabitDialog } from "@/features/activities/habit-form";
 import { GoalDialog } from "@/features/goals/goal-form";
+import { ExternalEventDialog } from "@/features/integrations/external-event-dialog";
 
 /** Renders whichever create/edit form is currently open. Keyed so each open starts fresh. */
 export function SheetHost() {
@@ -26,6 +27,8 @@ export function SheetHost() {
       return <HabitDialog key={key} id={sheet.id} />;
     case "goal":
       return <GoalDialog key={key} id={sheet.id} module={sheet.module} />;
+    case "external":
+      return <ExternalEventDialog key={key} id={sheet.id} />;
     default:
       return null;
   }

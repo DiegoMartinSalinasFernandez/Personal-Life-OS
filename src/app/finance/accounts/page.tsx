@@ -23,6 +23,7 @@ import { isISODate, formatDate } from "@/lib/domain/dates";
 import type { Account, AccountType } from "@/lib/domain/types";
 import { PALETTE } from "@/lib/data/defaults";
 import { ACCOUNT_TYPE_LABEL } from "@/features/finance/shared";
+import { HoldingsPanel } from "@/features/integrations/holdings-panel";
 
 const TYPE_ICON: Record<AccountType, typeof Wallet> = { cash: Banknote, checking: Landmark, savings: PiggyBank, credit: CreditCard, investment: LineChart, loan: CircleDollarSign, other: Wallet };
 
@@ -143,7 +144,7 @@ function AccountsInner() {
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="flex items-center gap-1.5 text-caption text-ink-3">
-          <Info className="size-3.5" /> Balances = opening balance + recorded transactions. Bank sync isn&apos;t connected.
+          <Info className="size-3.5" /> Balances = opening balance + recorded (manual and accepted imported) transactions. Imports are managed in Settings → Integrations.
         </p>
         <div className="flex gap-2">
           <Button size="sm" variant="ghost" onClick={() => setShowArchived((s) => !s)}>
@@ -164,6 +165,7 @@ function AccountsInner() {
           <EmptyState icon={<Wallet />} title="No accounts yet" description="Add checking, savings, cash, credit cards or any custom account." action={<Button variant="primary" onClick={() => setEditing("new")}>Add account</Button>} />
         </Card>
       )}
+      {db.accounts.length ? <HoldingsPanel /> : null}
       {editing ? <AccountDialog account={editing === "new" ? undefined : editing} onClose={() => setEditing(null)} /> : null}
     </div>
   );

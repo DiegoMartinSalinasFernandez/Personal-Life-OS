@@ -7,3 +7,6 @@ next-env.d.ts
 .env
 coverage
 .DS_Store
+
+# Integration credential store (encrypted tokens) — never commit
+.data/

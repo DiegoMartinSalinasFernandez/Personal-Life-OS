@@ -32,6 +32,7 @@ interface Filters {
   from: string;
   to: string;
   sort: Sort;
+  origin?: "all" | "manual" | "imported";
 }
 const PAGE = 50;
 
@@ -54,6 +55,7 @@ function TransactionsInner() {
   };
   const catMap = useMemo(() => new Map(db.categories.map((c) => [c.id, c])), [db.categories]);
   const accMap = useMemo(() => new Map(db.accounts.map((a) => [a.id, a])), [db.accounts]);
+  const sourceName = (s: NonNullable<Transaction["source"]>) => db.integrationSources.find((x) => x.id === s.sourceId)?.name ?? s.provider;
 
   const filtered = useMemo(() => {
     const q = f.q.trim().toLowerCase();
@@ -63,6 +65,8 @@ function TransactionsInner() {
       if (f.account && t.accountId !== f.account && t.toAccountId !== f.account) return false;
       if (f.category === "none" && (t.categoryId || t.type === "transfer")) return false;
       if (catIds && (!t.categoryId || !catIds.has(t.categoryId))) return false;
+      if (f.origin === "manual" && t.source) return false;
+      if (f.origin === "imported" && !t.source) return false;
       if (f.from && t.date < f.from) return false;
       if (f.to && t.date > f.to) return false;
       if (q) {
@@ -126,7 +130,7 @@ function TransactionsInner() {
             </Button>
           </div>
         </div>
-        <div className="mt-2 grid grid-cols-2 gap-2 md:grid-cols-5">
+        <div className="mt-2 grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
           <Select aria-label="Account" value={f.account} onChange={(e) => patch({ account: e.target.value })} className="h-8 text-sm">
             <option value="">All accounts</option>
             <AccountOptions accounts={db.accounts} />
@@ -136,9 +140,14 @@ function TransactionsInner() {
             <option value="none">Uncategorized</option>
             <CategoryOptions categories={db.categories} />
           </Select>
+          <Select aria-label="Origin" value={f.origin ?? "all"} onChange={(e) => patch({ origin: e.target.value as Filters["origin"] })} className="h-8 text-sm">
+            <option value="all">Manual & imported</option>
+            <option value="manual">Manual only</option>
+            <option value="imported">Imported only</option>
+          </Select>
           <Input type="date" aria-label="From date" value={f.from} max={f.to || undefined} onChange={(e) => patch({ from: isISODate(e.target.value) ? e.target.value : "" })} className="h-8 text-sm" />
           <Input type="date" aria-label="To date" value={f.to} min={f.from || undefined} onChange={(e) => patch({ to: isISODate(e.target.value) ? e.target.value : "" })} className="h-8 text-sm" />
-          <div className="relative col-span-2 md:col-span-1">
+          <div className="relative">
             <ArrowUpDown className="pointer-events-none absolute left-2.5 top-1/2 z-10 size-3.5 -translate-y-1/2 text-ink-3" aria-hidden />
             <Select aria-label="Sort" value={f.sort} onChange={(e) => patch({ sort: e.target.value as Sort })} className="h-8 pl-8 text-sm">
               <option value="date-desc">Newest first</option>
@@ -207,7 +216,10 @@ function TransactionsInner() {
                         <button className="flex w-full items-center gap-2.5 text-left" onClick={(e) => { e.stopPropagation(); openSheet({ kind: "transaction", id: t.id }); }}>
                           <TxIcon tx={t} category={cat} />
                           <span className="min-w-0">
-                            <span className="block truncate font-medium text-ink">{t.description}</span>
+                            <span className="flex items-center gap-1.5">
+                              <span className="truncate font-medium text-ink">{t.description}</span>
+                              {t.source ? <Badge tone="info">Imported · {sourceName(t.source)}</Badge> : null}
+                            </span>
                             <span className="block truncate text-caption text-ink-3">
                               {t.merchant ?? ""}
                               {t.tags.length ? ` ${t.tags.map((x) => `#${x}`).join(" ")}` : ""}
@@ -240,7 +252,7 @@ function TransactionsInner() {
                             <TxIcon tx={t} category={cat} />
                             <span className="min-w-0 flex-1">
                               <span className="block truncate text-base font-medium">{t.description}</span>
-                              <span className="block truncate text-caption text-ink-3">{t.type === "transfer" ? "Transfer" : cat?.name ?? "Uncategorized"} · {acc?.name}</span>
+                              <span className="block truncate text-caption text-ink-3">{t.type === "transfer" ? "Transfer" : cat?.name ?? "Uncategorized"} · {acc?.name}{t.source ? ` · imported (${sourceName(t.source)})` : ""}</span>
                             </span>
                             <Amount tx={t} currency={acc?.currency ?? money.currency} />
                           </button>

@@ -45,6 +45,7 @@ export function TxRow({ tx, categories, accounts, onClick, showDate = true }: { 
         <span className="flex items-center gap-1.5">
           <span className="truncate text-base font-medium text-ink">{tx.description}</span>
           {tx.recurringId ? <Repeat className="size-3 shrink-0 text-ink-3" aria-label="Recurring" /> : null}
+          {tx.source ? <Badge tone="info">Imported</Badge> : null}
         </span>
         <span className="block truncate text-caption text-ink-3">
           {tx.type === "transfer" ? `${acc?.name ?? "?"} → ${to?.name ?? "?"}` : [cat?.name ?? "Uncategorized", tx.merchant].filter(Boolean).join(" · ")}

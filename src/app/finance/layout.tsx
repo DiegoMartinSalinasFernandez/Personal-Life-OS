@@ -29,6 +29,7 @@ export default function FinanceLayout({ children }: { children: React.ReactNode 
             { href: "/finance/budgets", label: "Budgets" },
             { href: "/finance/bills", label: "Bills & recurring" },
             { href: "/finance/goals", label: "Savings goals" },
+            { href: "/finance/imports", label: "Imports" },
           ]}
         />
       </PageHeader>
